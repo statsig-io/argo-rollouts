@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -34,14 +35,12 @@ import (
 	rolloutinformers "github.com/argoproj/argo-rollouts/pkg/client/informers/externalversions"
 	listers "github.com/argoproj/argo-rollouts/pkg/client/listers/rollouts/v1alpha1"
 	"github.com/argoproj/argo-rollouts/pkg/kubectl-argo-rollouts/cmd/abort"
-	"github.com/argoproj/argo-rollouts/pkg/kubectl-argo-rollouts/cmd/get"
 	"github.com/argoproj/argo-rollouts/pkg/kubectl-argo-rollouts/cmd/promote"
 	"github.com/argoproj/argo-rollouts/pkg/kubectl-argo-rollouts/cmd/restart"
 	"github.com/argoproj/argo-rollouts/pkg/kubectl-argo-rollouts/cmd/retry"
 	"github.com/argoproj/argo-rollouts/pkg/kubectl-argo-rollouts/cmd/set"
 	"github.com/argoproj/argo-rollouts/pkg/kubectl-argo-rollouts/cmd/undo"
 	"github.com/argoproj/argo-rollouts/pkg/kubectl-argo-rollouts/info"
-	"github.com/argoproj/argo-rollouts/pkg/kubectl-argo-rollouts/viewcontroller"
 	"github.com/argoproj/argo-rollouts/utils/json"
 	versionutils "github.com/argoproj/argo-rollouts/utils/version"
 )
@@ -85,9 +84,11 @@ type ArgoRolloutsServer struct {
 // stream subscribers (WatchRolloutInfos) so streams don't build and sync
 // their own informers per connection.
 type namespaceListers struct {
-	rollouts    listers.RolloutNamespaceLister
-	replicaSets appslisters.ReplicaSetNamespaceLister
-	pods        corelisters.PodNamespaceLister
+	rollouts     listers.RolloutNamespaceLister
+	replicaSets  appslisters.ReplicaSetNamespaceLister
+	pods         corelisters.PodNamespaceLister
+	experiments  listers.ExperimentNamespaceLister
+	analysisRuns listers.AnalysisRunNamespaceLister
 
 	subsMu    sync.Mutex
 	subs      map[uint64]chan *v1alpha1.Rollout
@@ -143,6 +144,8 @@ func (s *ArgoRolloutsServer) namespaceListers(ctx context.Context, namespace str
 	rolloutsFactory := rolloutinformers.NewSharedInformerFactoryWithOptions(
 		s.Options.RolloutsClientset, 0, rolloutinformers.WithNamespace(namespace))
 	rolloutInformer := rolloutsFactory.Argoproj().V1alpha1().Rollouts()
+	expInformer := rolloutsFactory.Argoproj().V1alpha1().Experiments()
+	arInformer := rolloutsFactory.Argoproj().V1alpha1().AnalysisRuns()
 
 	// Only ReplicaSets/Pods managed by Argo Rollouts carry
 	// DefaultRolloutUniqueLabelKey, and those are the only objects the
@@ -162,6 +165,8 @@ func (s *ArgoRolloutsServer) namespaceListers(ctx context.Context, namespace str
 	rolloutSynced := rolloutInformer.Informer().HasSynced
 	rsSynced := rsInformer.Informer().HasSynced
 	podSynced := podInformer.Informer().HasSynced
+	expSynced := expInformer.Informer().HasSynced
+	arSynced := arInformer.Informer().HasSynced
 
 	rolloutsFactory.Start(stopCh)
 	kubeFactory.Start(stopCh)
@@ -170,16 +175,18 @@ func (s *ArgoRolloutsServer) namespaceListers(ctx context.Context, namespace str
 	// context may carry no deadline, which would block forever on failure).
 	syncCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	if !cache.WaitForCacheSync(syncCtx.Done(), rolloutSynced, rsSynced, podSynced) {
+	if !cache.WaitForCacheSync(syncCtx.Done(), rolloutSynced, rsSynced, podSynced, expSynced, arSynced) {
 		close(stopCh)
 		return nil, fmt.Errorf("timed out waiting for informer caches to sync for namespace %q", namespace)
 	}
 
 	c := &namespaceListers{
-		rollouts:    rolloutInformer.Lister().Rollouts(namespace),
-		replicaSets: rsInformer.Lister().ReplicaSets(namespace),
-		pods:        podInformer.Lister().Pods(namespace),
-		subs:        make(map[uint64]chan *v1alpha1.Rollout),
+		rollouts:     rolloutInformer.Lister().Rollouts(namespace),
+		replicaSets:  rsInformer.Lister().ReplicaSets(namespace),
+		pods:         podInformer.Lister().Pods(namespace),
+		experiments:  expInformer.Lister().Experiments(namespace),
+		analysisRuns: arInformer.Lister().AnalysisRuns(namespace),
+		subs:         make(map[uint64]chan *v1alpha1.Rollout),
 	}
 
 	// One set of event handlers on the SHARED informers feeds every stream
@@ -322,42 +329,102 @@ func (s *ArgoRolloutsServer) Run(ctx context.Context, port int, dashboard bool) 
 	errors.CheckError(conn.Close())
 }
 
-func (s *ArgoRolloutsServer) initRolloutViewController(namespace string, name string, ctx context.Context) *viewcontroller.RolloutViewController {
-	controller := viewcontroller.NewRolloutViewController(namespace, name, s.Options.KubeClientset, s.Options.RolloutsClientset)
-	controller.Start(ctx)
-	return controller
-}
-
-func (s *ArgoRolloutsServer) getRolloutInfo(namespace string, name string) (*rollout.RolloutInfo, error) {
-	controller := s.initRolloutViewController(namespace, name, context.Background())
-	ri, err := controller.GetRolloutInfo()
+// getRolloutInfo assembles the full single-rollout view (replicasets, pods,
+// experiments, analysis runs and the optional workloadRef Deployment) from
+// the shared namespace cache. The per-request viewcontroller this replaces
+// built and synced six informer caches per page open — 10-30s of
+// full-namespace listing on large cross-region namespaces.
+func (s *ArgoRolloutsServer) getRolloutInfo(ctx context.Context, namespace string, name string) (*rollout.RolloutInfo, error) {
+	c, err := s.namespaceListers(ctx, namespace)
 	if err != nil {
 		return nil, err
 	}
-	return ri, nil
+
+	ro, err := c.rollouts.Get(name)
+	if err != nil {
+		return nil, err
+	}
+	allReplicaSets, err := c.replicaSets.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	allPods, err := c.pods.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	allExps, err := c.experiments.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	allAnalysisRuns, err := c.analysisRuns.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	// Single-object read on the rare workloadRef rollout — not worth caching
+	// every Deployment in the namespace for it.
+	var workloadRef *appsv1.Deployment
+	if ro.Spec.WorkloadRef != nil {
+		workloadRef, err = s.Options.KubeClientset.AppsV1().Deployments(namespace).Get(ctx, ro.Spec.WorkloadRef.Name, v1.GetOptions{})
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return info.NewRolloutInfo(ro, allReplicaSets, allPods, allExps, allAnalysisRuns, workloadRef), nil
 }
 
 // GetRolloutInfo returns a rollout
 func (s *ArgoRolloutsServer) GetRolloutInfo(c context.Context, q *rollout.RolloutInfoQuery) (*rollout.RolloutInfo, error) {
-	return s.getRolloutInfo(q.GetNamespace(), q.GetName())
+	return s.getRolloutInfo(c, q.GetNamespace(), q.GetName())
 }
 
 // WatchRolloutInfo returns a rollout stream
 func (s *ArgoRolloutsServer) WatchRolloutInfo(q *rollout.RolloutInfoQuery, ws rollout.RolloutService_WatchRolloutInfoServer) error {
 	ctx := ws.Context()
-	controller := s.initRolloutViewController(q.GetNamespace(), q.GetName(), ctx)
 
-	rolloutUpdates := make(chan *rollout.RolloutInfo)
-	controller.RegisterCallback(func(roInfo *rollout.RolloutInfo) {
-		rolloutUpdates <- roInfo
-	})
+	c, err := s.namespaceListers(ctx, q.GetNamespace())
+	if err != nil {
+		return err
+	}
 
-	go get.Watch(ctx.Done(), rolloutUpdates, func(i *rollout.RolloutInfo) {
-		ws.Send(i)
-	})
-	controller.Run(ctx)
-	close(rolloutUpdates)
-	return nil
+	id, updates := c.subscribe()
+	defer c.unsubscribe(id)
+
+	// Mirror the old viewcontroller behavior: only send when the assembled
+	// info actually changed.
+	var prev *rollout.RolloutInfo
+	emit := func() error {
+		ri, err := s.getRolloutInfo(ctx, q.GetNamespace(), q.GetName())
+		if err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(prev, ri) {
+			if err := ws.Send(ri); err != nil {
+				return err
+			}
+			prev = ri
+		}
+		return nil
+	}
+
+	if err := emit(); err != nil {
+		return err
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case ro := <-updates:
+			if ro.Name != q.GetName() {
+				continue
+			}
+			if err := emit(); err != nil {
+				return err
+			}
+		}
+	}
 }
 
 func (s *ArgoRolloutsServer) ListReplicaSetsAndPods(ctx context.Context, namespace string) ([]*appsv1.ReplicaSet, []*corev1.Pod, error) {
