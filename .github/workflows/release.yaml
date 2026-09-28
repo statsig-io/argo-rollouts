@@ -12,7 +12,7 @@ env:
 jobs:
   # Central registry namespace configuration - Allows override of the registry namespace via GitHub vars. Defaults to 'argoproj'
   set-registry-namespace:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       registry_namespace: ${{ steps.set.outputs.registry_namespace }}
     steps:
@@ -98,7 +98,7 @@ jobs:
     needs: set-registry-namespace
     permissions:
       contents: write # for softprops/action-gh-release to create GitHub release
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
 
@@ -175,7 +175,7 @@ jobs:
     permissions:
       contents: write # Needed for release uploads
       id-token: write # Needed for signing Sbom
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@v6 # v3.3.0
@@ -255,7 +255,7 @@ jobs:
       - generate-sbom
     permissions:
       contents: write # Needed to push commit to update stable tag
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@v6 # v3.3.0

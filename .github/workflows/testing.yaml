@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       backend: ${{ steps.filter.outputs.backend_any_changed }}
     steps:
@@ -40,7 +40,7 @@ jobs:
 
   event_file:
     name: 'Event File'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Upload
         uses: actions/upload-artifact@v6
@@ -51,7 +51,7 @@ jobs:
     name: Run unit tests
     needs: [changes]
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Set up Go
         uses: actions/setup-go@v6.2.0
@@ -111,7 +111,7 @@ jobs:
             k3s_version: '1.35.1+k3s1'
             latest: true
     name: Run end-to-end tests (${{ matrix.kubernetes.version }}, ${{ matrix.kubernetes.latest }})
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Set up Go
         uses: actions/setup-go@v6.2.0
@@ -190,7 +190,7 @@ jobs:
     needs:
       - test-e2e
       - changes
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - run: |
           result="${{ needs.test-e2e.result }}"
@@ -203,7 +203,7 @@ jobs:
 
   coverage-process:
     name: Process Coverage Files
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     needs:
       - changes
       - test-unit

@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       backend: ${{ steps.filter.outputs.backend_any_changed }}
     steps:
@@ -41,7 +41,7 @@ jobs:
     name: Lint Go code
     needs: [changes]
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Set up Go
         uses: actions/setup-go@v6.2.0
@@ -58,7 +58,7 @@ jobs:
     name: Build
     needs: [changes]
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Set up Go
         uses: actions/setup-go@v6.2.0
@@ -94,7 +94,7 @@ jobs:
     name: Verify Codegen
     needs: [changes]
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     env:
       GOPATH: /home/runner/go
     steps:
