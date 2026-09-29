@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       backend: ${{ steps.filter.outputs.backend_any_changed }}
     steps:
@@ -41,7 +41,7 @@ jobs:
     name: Lint Go code
     needs: [changes]
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Set up Go
         uses: actions/setup-go@v6.2.0
@@ -58,7 +58,7 @@ jobs:
     name: Build
     needs: [changes]
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Set up Go
         uses: actions/setup-go@v6.2.0
@@ -82,6 +82,11 @@ jobs:
         run: |
           go mod download
 
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+
       - name: Install pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
@@ -94,7 +99,7 @@ jobs:
     name: Verify Codegen
     needs: [changes]
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     env:
       GOPATH: /home/runner/go
     steps:
@@ -110,6 +115,14 @@ jobs:
         run: |
           mkdir -p ~/go/src/github.com/argoproj
           ln -s $(pwd) ~/go/src/github.com/argoproj/argo-rollouts
+      - name: Add /usr/local/bin to PATH
+        run: |
+          echo "/usr/local/bin" >> $GITHUB_PATH
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+
       - name: Install pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
@@ -132,9 +145,6 @@ jobs:
       - name: Add ~/go/bin to PATH
         run: |
           echo "/home/runner/go/bin" >> $GITHUB_PATH
-      - name: Add /usr/local/bin to PATH
-        run: |
-          echo "/usr/local/bin" >> $GITHUB_PATH
 
       - name: Run codegen
         run: |

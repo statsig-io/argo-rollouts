@@ -12,7 +12,7 @@ env:
 jobs:
   # Central registry namespace configuration - Allows override of the registry namespace via GitHub vars. Defaults to 'argoproj'
   set-registry-namespace:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       registry_namespace: ${{ steps.set.outputs.registry_namespace }}
     steps:
@@ -98,7 +98,7 @@ jobs:
     needs: set-registry-namespace
     permissions:
       contents: write # for softprops/action-gh-release to create GitHub release
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
 
@@ -175,7 +175,7 @@ jobs:
     permissions:
       contents: write # Needed for release uploads
       id-token: write # Needed for signing Sbom
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@v6 # v3.3.0
@@ -192,6 +192,11 @@ jobs:
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
         with:
           cosign-release: 'v2.2.0'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
 
       - name: Install pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -255,7 +260,7 @@ jobs:
       - generate-sbom
     permissions:
       contents: write # Needed to push commit to update stable tag
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@v6 # v3.3.0

@@ -14,7 +14,7 @@ jobs:
         (github.event.action == 'labeled' && startsWith(github.event.label.name, 'cherry-pick/')) ||
         (github.event.action == 'closed' && contains(toJSON(github.event.pull_request.labels.*.name), 'cherry-pick/'))
       )
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     outputs:
       labels: ${{ steps.extract-labels.outputs.labels }}
     steps:

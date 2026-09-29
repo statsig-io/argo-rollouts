@@ -53,7 +53,7 @@ jobs:
       contents: read
       packages: write # Used to push images to `ghcr.io` if used.
       id-token: write # Needed to create an OIDC token for keyless signing
-    runs-on: ubuntu-22.04
+    runs-on: blacksmith-2vcpu-ubuntu-2204
     outputs:
       image-digest: ${{ steps.image.outputs.digest }}
     steps:
@@ -72,6 +72,11 @@ jobs:
         uses: actions/setup-go@v6.2.0 # v3.5.0
         with:
           go-version: ${{ inputs.go-version }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
 
       - name: Install pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0

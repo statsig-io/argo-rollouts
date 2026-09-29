@@ -28,7 +28,7 @@ on:
 jobs:
   cherry-pick:
     name: Cherry Pick to ${{ inputs.version_number }}
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Generate a token
         id: generate-token
