@@ -43,7 +43,7 @@ jobs:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Upload
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: Event File
           path: ${{ github.event_path }}
@@ -54,16 +54,16 @@ jobs:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v6.2.0
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: ${{ env.GOLANG_VERSION }}
         id: go
 
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Restore go build and module cache
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
             ~/.cache/go-build
@@ -80,13 +80,13 @@ jobs:
 
       - name: Upload Unit Test Results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: Unit Test Results
           path: |
             junit-unit-test.xml
       - name: Generate code coverage artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: coverage-output-unit
           path: coverage-output-unit
@@ -114,7 +114,7 @@ jobs:
     runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v6.2.0
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: '1.26'
       - uses: actions/checkout@v6
@@ -160,19 +160,19 @@ jobs:
           [[ -f rerunreport.txt ]] && cat rerunreport.txt || echo "No rerun report found"
       - name: Upload E2E Test Results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: E2E Test Results (k8s ${{ matrix.kubernetes.version }})
           path: |
             junit-e2e-test.xml
       - name: Upload e2e-controller logs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: e2e-controller-k8s-${{ matrix.kubernetes.version }}.log
           path: /tmp/e2e-controller.log
         if: ${{ always() }}
       - name: Upload code coverage artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: coverage-output-e2e
           path: coverage-output-e2e
@@ -211,7 +211,7 @@ jobs:
     if: needs.changes.outputs.backend == 'true'
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v6.2.0
+        uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5 # v6.2.0
         with:
           go-version: ${{ env.GOLANG_VERSION }}
         id: go
