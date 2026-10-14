@@ -163,7 +163,7 @@ plugin: ui/dist ## build plugin
 	CGO_ENABLED=0 go build -v -ldflags '${LDFLAGS}' -o ${DIST_DIR}/${PLUGIN_CLI_NAME} ./cmd/kubectl-argo-rollouts
 
 ui/dist:
-	yarn --cwd ui install
+	yarn --cwd ui install --frozen-lockfile
 	yarn --cwd ui build
 
 .PHONY: plugin-linux
